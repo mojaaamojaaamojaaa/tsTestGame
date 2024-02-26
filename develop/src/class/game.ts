@@ -7,7 +7,7 @@ import Meteo from "./meteo.js";
 import Shot from "./shot.js";
 import Player from "./player.js";
 import { Util } from "../util/util.js";
-import { Point2D } from "../util/type.js";
+import { Point2D, SaveData } from "../util/type.js";
 
 /**
  * Game Class
@@ -19,7 +19,7 @@ export default class Game {
   private readonly _player: Player; //自機
   private _shots: Array<Shot>; //弾
   private _comets: Array<Comet>; //流星
-  private _meteo: Array<Meteo>; //隕石
+  private _meteos: Array<Meteo>; //隕石
   /* テキスト */
   private _score: number; //スコアの値
   private _level: number; //レベルの値
@@ -49,7 +49,7 @@ export default class Game {
     //配列の初期化
     this._shots = []; //弾
     this._comets = []; //流星
-    this._meteo = []; //隕石
+    this._meteos = []; //隕石
 
     //スコアの表示を初期化
     this._score = 0;
@@ -93,34 +93,106 @@ export default class Game {
    */
   private mainTimer(): void {
     //スコアを加算
+    this.addScore(1);
     //境界チェック
+    this.checkBoundary();
     //衝突判定
+    this.detectCollision();
     //ゲームの状態を保存
+    this.save();
   }
   /**
    * scoreの加算
+   * @param score 加算
    */
-  private addScore(): void {
+  private addScore(score: number): void {
     //スコアの更新
+    this._score += score;
+    this._scoreBoard.score = this._score;
     //updateLevel()を呼び出す
+    this.updateLevel();
   }
   /**
    * Levelを更新
    */
   private updateLevel(): void {
-    //レベルを更新
+    //次のレベルに必要なスコア
+    const nextScore = Util.getNextScore(this._level);
+    //必要スコアへの到達範囲
+    if (nextScore <= this._score) {
+      //レベルを更新
+      this._level++;
+      //レベル描画更新
+      this._levelBoard.level = this._level;
+    }
   }
   /**
    * 境界チェック
    */
   private checkBoundary(): void {
     //境界チェック
+    //全ての球を繰り返す
+    this._shots.forEach((shot) => {
+      //画面外に出たかどうか(条件分岐)
+      if (Util.isOutsideScreen(shot)) {
+        //弾を消去
+        Util.removeObject<Shot>(shot, this._shots);
+      }
+    });
+    //全ての流星を繰り返す
+    this._comets.forEach((comet) => {
+      //画面外に出たかどうか(条件分岐)
+      if (Util.isOutsideScreen(comet)) {
+        //流星を消去
+        Util.removeObject<Comet>(comet, this._comets);
+      }
+    });
+    //全ての隕石を繰り返す
+    this._meteos.forEach((meteo) => {
+      //画面外に出たかどうか(条件分岐)
+      if (Util.isOutsideScreen(meteo)) {
+        //隕石を消去
+        Util.removeObject<Meteo>(meteo, this._meteos);
+      }
+    });
+    console.log("shot" + this._shots.length);
+    console.log("comet" + this._comets.length);
+    console.log("meteo" + this._meteos.length);
   }
   /**
    * 衝突判定
    */
   private detectCollision(): void {
     //衝突判定
+    //全ての流星を繰り返す
+    this._comets.forEach((comet) => {
+      if (Util.isCollding(this._player, comet, 30)) {
+        //流星を削除
+        Util.removeObject<Comet>(comet, this._comets);
+        //次のレベルまでに必要なスコアを加算
+        const nextScore = Util.getNextScore(this._level);
+        this.addScore(nextScore - this._score);
+      }
+    });
+    //全ての弾を繰り返す
+    this._shots.forEach((shot) => {
+      //全ての隕石を調査する
+      for (const meteo of this._meteos) {
+        //隕石と弾の衝突判定
+        if (Util.isCollding(meteo, shot, 80)) {
+          //命中したらスコアを加算
+          this.addScore(100);
+          //隕石の強度を減らし、破壊したら消去
+          if ((meteo.power -= shot.power) <= 0) {
+            Util.removeObject<Meteo>(meteo, this._meteos);
+          }
+          //弾を消去
+          Util.removeObject<Shot>(shot, this._shots);
+          //調査終了
+          break;
+        }
+      }
+    });
   }
   /**
    * 弾の生成
@@ -184,37 +256,140 @@ export default class Game {
     }
     //弾のy座標
     const y = this._player.position.y + this._player.size.y / 2;
-
     //弾の強度を求める
+    const power = Util.getShotPower(this._level);
     //弾を生成し配列に追加
+    x_array.forEach((x: number, i: number) => {
+      const position = { x: x, y: y };
+      const velocity = v_array[i];
+      this._shots.push(
+        new Shot({
+          position: position,
+          size: size,
+          velocity: velocity,
+          acceleration: acceleration,
+          power: power,
+        })
+      );
+    });
     //弾を生成するタイマーの間隔を更新
+    clearInterval(this._shotTimer);
+    this._shotInterval = Math.max(100, 1000 - this._level);
+    this._shotTimer = setInterval(
+      this.createShot.bind(this),
+      this._shotInterval
+    );
   }
   /**
    * 隕石の生成
    */
   private createMeteo(): void {
     //初期位置を決める
+    //隕石のサイズ
+    const size = { x: 150, y: 150 };
+    //隕石の座標
+    const position = {
+      x: Util.random(0, Screen.width),
+      y: Screen.height + 75,
+    };
+    //隕石の速度
+    const velocity = {
+      x: Util.random(-2, -1),
+      y: Util.random(-1, 1),
+    };
+    //隕石の加速度
+    const acceleration = {
+      x: 0,
+      y: Util.random(-1, 0),
+    };
     //隕石の強度を求める
+    const power = Util.getMeteoPower(this._level);
     //隕石を生成して配列に追加
+    this._meteos.push(
+      new Meteo({
+        position: position,
+        size: size,
+        velocity: velocity,
+        acceleration: acceleration,
+        power: power,
+      })
+    );
     //隕石を生成するタイマーの間隔を更新
+    clearInterval(this._meteoTimer);
+    this._meteoInterval = Math.max(500, 2000 - this._level * 100);
+    this._meteoTimer = setInterval(
+      this.createMeteo.bind(this),
+      this._meteoInterval
+    );
   }
   /**
    * 流星の生成
    */
   private createComet(): void {
     //初期位置を決める
+    //流星のサイズ
+    const size = { x: 50, y: 50 };
+    //流星の座標
+    const position = { x: 0, y: 0 };
+    //流星の速度
+    const velocity = { x: 0, y: 0 };
+    //流星の加速度
+    const acceleration = { x: 0, y: 0 };
+    //50%の確率で出現位置と移動方向を分岐
+    if (Util.random(0, 100) < 50) {
+      [position.x, position.y] = [
+        Screen.width + 25,
+        Screen.height - Util.random(0, 500),
+      ];
+      [velocity.x, velocity.y] = [-6, -3];
+      [acceleration.x, acceleration.y] = [-0.6, -0.3];
+    } else {
+      [position.x, position.y] = [-25, Screen.height - Util.random(0, 500)];
+      [velocity.x, velocity.y] = [6, -3];
+      [acceleration.x, acceleration.y] = [0.6, -0.3];
+    }
     //流星を生成して配列に追加
+    this._comets.push(
+      new Comet({
+        position: position,
+        size: size,
+        velocity: velocity,
+        acceleration: acceleration,
+      })
+    );
   }
   /**
    * 保存
    */
   private save(): void {
     //ゲームの状態を保存する
+    const data: SaveData = {
+      level: this._level,
+      score: this._score,
+      shotInterval: this._shotInterval,
+      meteoInterval: this._meteoInterval,
+    };
+    //JSONに変換してストレージに保存
+    localStorage.setItem("data", JSON.stringify(data));
   }
   /**
    * ロード
    */
   private load(): void {
     //ゲームの状態を復元する
+    const json = localStorage.getItem("data");
+    //データの存在をチェック
+    if (json !== null) {
+      //JSONをオブジェクトに変換
+      const data: SaveData = JSON.parse(json);
+      //保存データを復元
+      this._level = data.level;
+      this._score = data.score;
+      this._shotInterval = data.shotInterval;
+      this._meteoInterval = data.meteoInterval;
+      //表示に反映
+      this._scoreBoard.score = this._score;
+      this._levelBoard.level = this._level;
+    }
   }
 }

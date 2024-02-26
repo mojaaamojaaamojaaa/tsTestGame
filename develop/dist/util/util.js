@@ -48,4 +48,87 @@ export var Util;
             y: y,
         };
     };
+    /**
+     * 生成する弾の強度
+     * @param level 現在のレベル
+     * @returns number 強度
+     */
+    Util.getShotPower = (level) => {
+        //1000を上限としてレベルに応じて強度が増していく
+        return Math.min(Math.floor(Math.pow(level, 1.3)), 1000);
+    };
+    /**
+     * 指定範囲内の乱数を取得
+     * @param min 最小値
+     * @param max 最大値
+     * @returns number 乱数
+     */
+    Util.random = (min, max) => {
+        //minとmaxの間のランダムな数値
+        return Math.random() * (max - min) + min;
+    };
+    /**
+     * 生成する隕石の強度
+     * @param level 現在のレべル
+     * @returns number 強度
+     */
+    Util.getMeteoPower = (level) => {
+        //5000を上限としてレベルに応じて強度が増していく
+        return Math.min(Math.floor(Math.pow(level, 1.5)), 5000);
+    };
+    /**
+     * Levelを更新
+     * @param level 現在のレベル
+     * @returns number スコア
+     */
+    //レベルを更新
+    Util.getNextScore = (level) => {
+        //レベルが上がるごとに必要スコアが増えていく
+        return Math.floor(Math.pow(level, 2) * 100);
+    };
+    /**
+     * @param obj 検査対象のオブジェクト
+     * @returns boolean true:画面外/false:画面内
+     */
+    Util.isOutsideScreen = (obj) => {
+        let result = false;
+        //画面内に制限した座標を求める
+        const clamped_pos = Util.clampScreen(obj, false);
+        //制限前後の座標が不一致ならば画面外
+        if (clamped_pos.x !== obj.position.x || clamped_pos.y !== obj.position.y) {
+            result = true;
+        }
+        //判定結果
+        return result;
+    };
+    /**
+     * ゲームオブジェクトの削除
+     * @param obj 削除対象のオブジェクト
+     * @param array オブジェクトを含む配列
+     */
+    Util.removeObject = (obj, array) => {
+        //HTML
+        obj.dispose();
+        //Array
+        if (typeof array !== "undefined") {
+            array.splice(array.indexOf(obj), 1);
+        }
+    };
+    /**
+     * 衝突判定
+     * @param obj1 検査対象のオブジェクト1
+     * @param obj2 検査対象のオブジェクト2
+     * @param radius 衝突したとみなす距離
+     * @return boolean
+     */
+    Util.isCollding = (obj1, obj2, radius) => {
+        const [x1, y1] = [obj1.position.x, obj1.position.y];
+        const [x2, y2] = [obj2.position.x, obj2.position.y];
+        //オブジェクト座標の差
+        const [dx, dy] = [x1 - x2, y1 - y2];
+        //オブジェクト間の距離
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        //衝突判定
+        return distance <= radius;
+    };
 })(Util || (Util = {}));

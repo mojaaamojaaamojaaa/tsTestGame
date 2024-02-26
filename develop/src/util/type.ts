@@ -91,3 +91,13 @@ export type PlayerParams = Omit<
   speed: number; //速さ
   keyboard: Keyboard;
 };
+
+/**
+ * SaveData型:保存データの形式
+ */
+export type SaveData = {
+  level: number; //レベルの値
+  score: number; //スコアの値
+  shotInterval: number; //弾の生成インターバル
+  meteoInterval: number; //隕石の生成インターバル
+};
